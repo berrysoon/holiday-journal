@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 
 const TAGS = ["🍜 Food","🏛️ Culture","🥾 Adventure","🛍️ Shopping","😴 Rest","🏖️ Beach","🎭 Nightlife","🌿 Nature"];
 const SEASONS = ["N/A (Tropical)","Spring 🌸","Summer ☀️","Autumn 🍂","Winter ❄️"];
@@ -456,15 +456,64 @@ function Wall({trips, filterCountry, filterYear, onView, onEdit, onDelete}) {
 }
 
 // ── App ──────────────────────────────────────────────────────────────────────
+const STORAGE_KEY = "holiday_journal_trips";
+
+function loadTrips() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch { return []; }
+}
+
 export default function App() {
-  const [trips, setTrips] = useState([]);
+  const [trips, setTrips] = useState(loadTrips);
   const [view, setView] = useState("wall");
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [filterCountry, setFilterCountry] = useState("");
   const [filterYear, setFilterYear] = useState("");
+  const [importErr, setImportErr] = useState("");
+  const importRef = React.useRef();
 
-  const save = t => { setTrips(ts => editing ? ts.map(x=>x.id===t.id?t:x) : [t,...ts]); setEditing(null); setView("wall"); };
+  // Save to localStorage whenever trips change
+  const persist = (updated) => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); }
+    catch { alert("Storage full! Please export a backup and delete some trips to free up space."); }
+    setTrips(updated);
+  };
+
+  const save = t => { persist(editing ? trips.map(x=>x.id===t.id?t:x) : [t,...trips]); setEditing(null); setView("wall"); };
+
+  // Export
+  const handleExport = () => {
+    const blob = new Blob([JSON.stringify(trips, null, 2)], {type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `holiday-journal-backup-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  // Import
+  const handleImport = (e) => {
+    setImportErr("");
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!Array.isArray(data)) throw new Error("Invalid format");
+        if (window.confirm(`Import ${data.length} trips? This will MERGE with your existing ${trips.length} trips.`)) {
+          // Merge — avoid duplicates by id
+          const existingIds = new Set(trips.map(t=>t.id));
+          const newTrips = data.filter(t=>!existingIds.has(t.id));
+          persist([...trips, ...newTrips]);
+          alert(`✅ Imported ${newTrips.length} new trips successfully!`);
+        }
+      } catch { setImportErr("❌ Invalid file. Please use a backup file exported from this app."); }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   // Derive all unique countries and years from trips
   const allCountries = [...new Set(trips.flatMap(t=>tripCountries(t)))].sort();
@@ -473,8 +522,8 @@ export default function App() {
 
   // Storage usage estimate
   const dataStr = JSON.stringify(trips);
-  const usedKB = Math.round((dataStr.length * 2) / 1024); // UTF-16 = 2 bytes/char
-  const maxKB = 5120; // 5MB
+  const usedKB = Math.round((dataStr.length * 2) / 1024);
+  const maxKB = 5120;
   const usedPct = Math.min(100, Math.round((usedKB / maxKB) * 100));
   const barColor = usedPct > 85 ? "#c0392b" : usedPct > 60 ? "#e67e22" : "#4caf50";
 
@@ -505,39 +554,45 @@ export default function App() {
             </div>
 
             {/* Storage bar */}
-            <div style={{background:"#fffcf7",border:"1px solid #e0d4bc",borderRadius:11,padding:"10px 14px",marginBottom:18}}>
+            <div style={{background:"#fffcf7",border:"1px solid #e0d4bc",borderRadius:11,padding:"10px 14px",marginBottom:14}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                 <span style={{fontSize:12,fontWeight:600,color:"#7a5c3c"}}>💾 Storage Used</span>
-                <span style={{fontSize:12,color: usedPct>85?"#c0392b":usedPct>60?"#e67e22":"#5a3e28",fontWeight:600}}>
+                <span style={{fontSize:12,color:usedPct>85?"#c0392b":usedPct>60?"#e67e22":"#5a3e28",fontWeight:600}}>
                   {usedKB < 1024 ? `${usedKB} KB` : `${(usedKB/1024).toFixed(1)} MB`} / 5 MB ({usedPct}%)
                 </span>
               </div>
               <div style={{background:"#e8dcc8",borderRadius:20,height:8,overflow:"hidden"}}>
                 <div style={{width:`${usedPct}%`,height:"100%",background:barColor,borderRadius:20,transition:"width .4s ease"}}/>
               </div>
-              {usedPct > 85 && <div style={{fontSize:11,color:"#c0392b",marginTop:5}}>⚠️ Storage almost full — consider removing older trips or photos.</div>}
-              {usedPct > 60 && usedPct <= 85 && <div style={{fontSize:11,color:"#e67e22",marginTop:5}}>Storage is getting full — be selective with new photos.</div>}
+              {usedPct>85 && <div style={{fontSize:11,color:"#c0392b",marginTop:5}}>⚠️ Storage almost full — export a backup and delete some trips.</div>}
+              {usedPct>60&&usedPct<=85 && <div style={{fontSize:11,color:"#e67e22",marginTop:5}}>Storage getting full — be selective with new photos.</div>}
+            </div>
+
+            {/* Export / Import */}
+            <div style={{background:"#fffcf7",border:"1px solid #e0d4bc",borderRadius:11,padding:"10px 14px",marginBottom:18,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+              <span style={{fontSize:12,fontWeight:600,color:"#7a5c3c",flex:1}}>🗄️ Backup</span>
+              <button onClick={handleExport} style={{...I.tag(false),padding:"6px 14px",fontSize:12}}>⬇️ Export</button>
+              <button onClick={()=>importRef.current.click()} style={{...I.tag(false),padding:"6px 14px",fontSize:12}}>⬆️ Import</button>
+              <input ref={importRef} type="file" accept=".json" hidden onChange={handleImport}/>
+              {importErr && <div style={{fontSize:11,color:"#c0392b",width:"100%"}}>{importErr}</div>}
             </div>
 
             {/* Filters */}
             <div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap",alignItems:"center"}}>
-              {/* Country filter */}
               <div style={I.lbl}>
                 <span>Filter by Country</span>
-                <select style={{...I.inp,width:"auto",minWidth:140}} value={filterCountry} onChange={e=>{setFilterCountry(e.target.value);}}>
+                <select style={{...I.inp,width:"auto",minWidth:140}} value={filterCountry} onChange={e=>setFilterCountry(e.target.value)}>
                   <option value="">All Countries</option>
                   {allCountries.map(c=><option key={c}>{c}</option>)}
                 </select>
               </div>
-              {/* Year filter */}
               <div style={I.lbl}>
                 <span>Filter by Year</span>
-                <select style={{...I.inp,width:"auto",minWidth:120}} value={filterYear} onChange={e=>{setFilterYear(e.target.value);}}>
+                <select style={{...I.inp,width:"auto",minWidth:120}} value={filterYear} onChange={e=>setFilterYear(e.target.value)}>
                   <option value="">All Years</option>
                   {allYears.map(y=><option key={y}>{y}</option>)}
                 </select>
               </div>
-              {/* Clear */}
               {(filterCountry||filterYear) && (
                 <button style={{...I.tag(false),alignSelf:"flex-end",padding:"7px 14px"}} onClick={()=>{setFilterCountry("");setFilterYear("");}}>✕ Clear</button>
               )}
@@ -549,12 +604,17 @@ export default function App() {
                 <div style={{fontSize:52}}>🌍</div>
                 <h2 style={{fontSize:20,color:"#5a3e28",margin:"12px 0 8px"}}>Your adventures await</h2>
                 <p>Add your first holiday!</p>
-                <button style={{...I.btnP,marginTop:16}} onClick={()=>setView("form")}>+ Add First Trip</button>
+                <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:16,flexWrap:"wrap"}}>
+                  <button style={I.btnP} onClick={()=>setView("form")}>+ Add First Trip</button>
+                  <button onClick={()=>importRef.current.click()} style={{...I.btnO}}>⬆️ Import Backup</button>
+                  <input ref={importRef} type="file" accept=".json" hidden onChange={handleImport}/>
+                </div>
+                {importErr && <div style={{fontSize:11,color:"#c0392b",marginTop:8}}>{importErr}</div>}
               </div>
             : <Wall trips={trips} filterCountry={filterCountry} filterYear={filterYear}
                 onView={t=>{setViewing(t);setView("detail");}}
                 onEdit={t=>{setEditing(t);setView("form");}}
-                onDelete={id=>setTrips(ts=>ts.filter(t=>t.id!==id))}/>
+                onDelete={id=>persist(trips.filter(t=>t.id!==id))}/>
           }
         </>}
       </div>
