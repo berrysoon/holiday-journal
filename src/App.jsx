@@ -268,8 +268,31 @@ function TripForm({initial, onSave, onCancel}) {
 
       {/* Cover photo */}
       {f.coverPhoto
-        ? <div style={{position:"relative",marginBottom:12}}><img src={f.coverPhoto} style={{width:"100%",height:160,objectFit:"cover",borderRadius:9}} alt="cover"/><button onClick={()=>u("coverPhoto",null)} style={{position:"absolute",top:8,right:8,background:"rgba(0,0,0,.6)",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontSize:12}}>Remove</button></div>
-        : <label style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",height:80,border:"2px dashed #c4a882",borderRadius:9,background:"#faf7f0",cursor:"pointer",color:"#a08060",fontSize:14,marginBottom:12,gap:6}}>📷 Add Cover Photo<input type="file" accept="image/*" hidden onChange={e=>{const f2=e.target.files[0];if(f2)compress(f2,d=>u("coverPhoto",d),900,0.65)}}/></label>
+        ? <div style={{position:"relative",marginBottom:12}}>
+            <img src={f.coverPhoto} style={{width:"100%",height:160,objectFit:"contain",background:"#2a1f14",borderRadius:9}} alt="cover"/>
+            <button onClick={()=>u("coverPhoto",null)} style={{position:"absolute",top:8,right:8,background:"rgba(0,0,0,.6)",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontSize:12}}>Remove</button>
+            {f.coverPhotoLinked && <span style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,.55)",color:"#fff",fontSize:10,padding:"2px 8px",borderRadius:20}}>🔗 Linked</span>}
+          </div>
+        : <div style={{marginBottom:12}}>
+            <div style={{display:"flex",gap:8,marginBottom:8}}>
+              {/* Upload */}
+              <label style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",height:72,border:"2px dashed #c4a882",borderRadius:9,background:"#faf7f0",cursor:"pointer",color:"#a08060",fontSize:13,gap:6,flexDirection:"column"}}>
+                <span style={{fontSize:22}}>📷</span>Upload
+                <input type="file" accept="image/*" hidden onChange={e=>{const f2=e.target.files[0];if(f2)compress(f2,d=>{u("coverPhoto",d);u("coverPhotoLinked",false);},900,0.65)}}/>
+              </label>
+              {/* Link */}
+              <button onClick={()=>{
+                const raw = prompt("Paste your Google Drive or image URL:");
+                if (!raw) return;
+                const url = toDirectUrl(raw.trim());
+                u("coverPhoto", url);
+                u("coverPhotoLinked", true);
+              }} style={{flex:1,height:72,border:"2px dashed #a0b8d0",borderRadius:9,background:"#f0f4f8",cursor:"pointer",color:"#507090",fontSize:13,fontFamily:"Georgia,serif",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4}}>
+                <span style={{fontSize:22}}>🔗</span>Link URL
+              </button>
+            </div>
+            <div style={{fontSize:10,color:"#9a7a5a",textAlign:"center"}}>Upload from device · or · Link from Google Drive / Dropbox</div>
+          </div>
       }
 
       {/* Basic fields */}
@@ -373,7 +396,18 @@ function TripDetail({trip, onBack, onEdit, readOnly}) {
   const totalPhotos = trip.tripDays.reduce((a,d)=>a+d.photos.length,0);
 
   const handleShare = () => {
-    const encoded = encodeTrip(trip);
+    // Remove locally uploaded photos (base64) — keep only linked photos (Google Drive etc)
+    // This keeps the URL short enough for WhatsApp and TinyURL
+    const stripped = {
+      ...trip,
+      tripDays: trip.tripDays.map(d=>({
+        ...d,
+        photos: d.photos.filter(p=>p.linked)
+      })),
+      // Keep cover photo only if it is a linked URL, strip if uploaded (base64)
+      coverPhoto: trip.coverPhotoLinked ? trip.coverPhoto : null
+    };
+    const encoded = encodeTrip(stripped);
     if (!encoded) { alert("Could not generate share link."); return; }
     const url = `${window.location.origin}${window.location.pathname}#share=${encoded}`;
     navigator.clipboard.writeText(url).then(()=>{
@@ -414,9 +448,9 @@ function TripDetail({trip, onBack, onEdit, readOnly}) {
       {readOnly && (
         <div style={{background:"#f5ede0",border:"1px solid #e0c898",borderRadius:9,
           padding:"10px 14px",marginBottom:14,fontSize:13,color:"#5a3e28",
-          display:"flex",alignItems:"center",gap:8}}>
+          display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
           <span style={{fontSize:18}}>👀</span>
-          <span>You are viewing a shared trip — <strong>read only</strong>.</span>
+          <span>You are viewing a shared trip — <strong>read only</strong>. Uploaded photos are not included in shared links to keep the URL short.</span>
         </div>
       )}
       <div style={{height:220,borderRadius:12,background:"#2a1f14",display:"flex",alignItems:"flex-end",marginBottom:16,position:"relative",overflow:"hidden"}}>
