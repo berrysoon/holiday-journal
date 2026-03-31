@@ -37,6 +37,21 @@ function tripLocationLabel(t) {
 
 function getYear(t) { return t.startDate ? t.startDate.slice(0,4) : "Unknown"; }
 
+// ── Share link helpers ────────────────────────────────────────────────────────
+function encodeTrip(trip) {
+  try { return btoa(unescape(encodeURIComponent(JSON.stringify(trip)))); }
+  catch { return null; }
+}
+function decodeTrip(str) {
+  try { return JSON.parse(decodeURIComponent(escape(atob(str)))); }
+  catch { return null; }
+}
+function getSharedTrip() {
+  const hash = window.location.hash;
+  if (hash.startsWith("#share=")) return decodeTrip(hash.slice(7));
+  return null;
+}
+
 function compress(file, cb, maxW, quality) {
   maxW = maxW||800; quality = quality||0.60;
   const img = new Image(), u = URL.createObjectURL(file);
@@ -350,11 +365,24 @@ function TripCard({trip, onView, onEdit, onDelete}) {
 }
 
 // ── Trip Detail ──────────────────────────────────────────────────────────────
-function TripDetail({trip, onBack, onEdit}) {
+function TripDetail({trip, onBack, onEdit, readOnly}) {
   const [openDays, setOpenDays] = useState({});
   const [showGallery, setShowGallery] = useState(false);
+  const [copied, setCopied] = useState(false);
   const tog = id => setOpenDays(s=>({...s,[id]:!s[id]}));
   const totalPhotos = trip.tripDays.reduce((a,d)=>a+d.photos.length,0);
+
+  const handleShare = () => {
+    const encoded = encodeTrip(trip);
+    if (!encoded) { alert("Could not generate share link."); return; }
+    const url = `${window.location.origin}${window.location.pathname}#share=${encoded}`;
+    navigator.clipboard.writeText(url).then(()=>{
+      setCopied(true);
+      setTimeout(()=>setCopied(false), 3000);
+    }).catch(()=>{
+      prompt("Copy this link and send to your friend:", url);
+    });
+  };
 
   const locationChip = trip.multiCountry && trip.countryList
     ? trip.countryList.filter(c=>c.country).map(c=>`${c.country}${c.cities?" ("+c.cities+")":""}`).join(" → ")
@@ -373,7 +401,24 @@ function TripDetail({trip, onBack, onEdit}) {
     <div style={{maxWidth:740,margin:"0 auto"}}>
       {showGallery && <PhotoGallery trip={trip} onClose={()=>setShowGallery(false)}/>}
 
-      {/* Hero */}
+      {/* Copied toast */}
+      {copied && (
+        <div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",
+          background:"#3d2b1a",color:"#f5deb3",padding:"10px 22px",borderRadius:24,
+          fontSize:13,fontWeight:700,zIndex:300,boxShadow:"0 4px 16px rgba(0,0,0,.3)"}}>
+          ✅ Link copied! Send it to your friend.
+        </div>
+      )}
+
+      {/* Read-only banner */}
+      {readOnly && (
+        <div style={{background:"#f5ede0",border:"1px solid #e0c898",borderRadius:9,
+          padding:"10px 14px",marginBottom:14,fontSize:13,color:"#5a3e28",
+          display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:18}}>👀</span>
+          <span>You are viewing a shared trip — <strong>read only</strong>.</span>
+        </div>
+      )}
       <div style={{height:220,borderRadius:12,background:"#2a1f14",display:"flex",alignItems:"flex-end",marginBottom:16,position:"relative",overflow:"hidden"}}>
         {trip.coverPhoto
           ? <img src={trip.coverPhoto} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"contain"}}/>
@@ -385,7 +430,7 @@ function TripDetail({trip, onBack, onEdit}) {
         </div>
       </div>
 
-      {/* Multi-country breakdown */}
+      {/* Hero */}
       {trip.multiCountry && trip.countryList && trip.countryList.filter(c=>c.country).length>0 && (
         <div style={{background:"#f5ede0",borderRadius:9,padding:"10px 14px",marginBottom:14,display:"flex",flexWrap:"wrap",gap:8}}>
           {trip.countryList.filter(c=>c.country).map((c,i)=>(
@@ -426,9 +471,17 @@ function TripDetail({trip, onBack, onEdit}) {
           <p style={{fontSize:13,lineHeight:1.7}}>{trip.reflection}</p>
         </div>
       )}
-      <div style={{display:"flex",gap:9,marginTop:4}}>
-        <button style={I.btnO} onClick={onBack}>← Back</button>
-        <button style={I.btnP} onClick={()=>onEdit(trip)}>Edit</button>
+      <div style={{display:"flex",gap:9,marginTop:4,flexWrap:"wrap"}}>
+        {readOnly
+          ? <button style={I.btnO} onClick={()=>{window.location.hash="";window.location.reload();}}>← Go to App</button>
+          : <>
+              <button style={I.btnO} onClick={onBack}>← Back</button>
+              <button style={I.btnP} onClick={()=>onEdit(trip)}>Edit</button>
+              <button onClick={handleShare} style={{...I.btnO,borderColor:"#5b8ed4",color:"#5b8ed4"}}>
+                🔗 Share Trip
+              </button>
+            </>
+        }
       </div>
     </div>
   );
@@ -464,6 +517,22 @@ function loadTrips() {
 }
 
 export default function App() {
+  // Check if this is a shared trip link
+  const sharedTrip = getSharedTrip();
+  if (sharedTrip) {
+    return (
+      <div style={{minHeight:"100vh",background:"#f7f0e6",fontFamily:"Georgia,serif"}}>
+        <div style={{background:"#3d2b1a",padding:"0 16px",height:52,display:"flex",alignItems:"center",gap:10,position:"sticky",top:0,zIndex:99}}>
+          <span style={{fontSize:20}}>✈️</span>
+          <span style={{color:"#f5deb3",fontSize:18,fontWeight:700}}>My Holiday Journal</span>
+          <span style={{marginLeft:"auto",fontSize:11,color:"rgba(245,222,179,.6)"}}>Shared Trip</span>
+        </div>
+        <div style={{maxWidth:860,margin:"0 auto",padding:"20px 14px"}}>
+          <TripDetail trip={sharedTrip} readOnly={true} onBack={()=>{}} onEdit={()=>{}}/>
+        </div>
+      </div>
+    );
+  }
   const [trips, setTrips] = useState(loadTrips);
   const [view, setView] = useState("wall");
   const [editing, setEditing] = useState(null);
@@ -540,7 +609,7 @@ export default function App() {
 
       <div style={{maxWidth:860,margin:"0 auto",padding:"20px 14px"}}>
         {view==="form" && <TripForm initial={editing} onSave={save} onCancel={()=>{setView("wall");setEditing(null);}}/>}
-        {view==="detail" && viewing && <TripDetail trip={trips.find(t=>t.id===viewing.id)||viewing} onBack={()=>setView("wall")} onEdit={t=>{setEditing(t);setView("form");}}/>}
+        {view==="detail" && viewing && <TripDetail trip={trips.find(t=>t.id===viewing.id)||viewing} readOnly={false} onBack={()=>setView("wall")} onEdit={t=>{setEditing(t);setView("form");}}/>}
 
         {view==="wall" && <>
           {trips.length > 0 && <>
