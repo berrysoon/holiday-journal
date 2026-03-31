@@ -77,6 +77,17 @@ function Stars({v, onChange}) {
   return <div style={{display:"flex",gap:2}}>{[1,2,3,4,5].map(n=><span key={n} onClick={()=>onChange(n)} style={{fontSize:24,cursor:"pointer",color:n<=v?"#E8A838":"#d1c4a8"}}>★</span>)}</div>;
 }
 
+// ── URL converter (shared by all modals) ─────────────────────────────────────
+function toDirectUrl(raw) {
+  raw = raw.trim();
+  const gdA = raw.match(/\/file\/d\/([^/]+)/);
+  const gdB = raw.match(/[?&]id=([^&]+)/);
+  const id = gdA?.[1] || gdB?.[1];
+  if (id) return `https://drive.google.com/thumbnail?id=${id}&sz=w800`;
+  if (raw.includes("dropbox.com")) return raw.replace("dl=0","raw=1").replace("www.dropbox","dl.dropboxusercontent");
+  return raw;
+}
+
 // ── Photo Gallery ────────────────────────────────────────────────────────────
 function PhotoGallery({trip, onClose}) {
   const allPhotos = trip.tripDays.flatMap(d => d.photos.map(p=>({...p, dayNum:d.dayNum})));
@@ -119,20 +130,6 @@ function LinkPhotoModal({onAdd, onClose}) {
   const [caption, setCaption] = useState("");
   const [preview, setPreview] = useState("");
   const [err, setErr] = useState("");
-
-  // Convert Google Drive share URL to direct image URL
-  function toDirectUrl(raw) {
-    raw = raw.trim();
-    // Google Drive: /file/d/FILE_ID/view or id=FILE_ID
-    const gdA = raw.match(/\/file\/d\/([^/]+)/);
-    const gdB = raw.match(/[?&]id=([^&]+)/);
-    const id = gdA?.[1] || gdB?.[1];
-    if (id) return `https://drive.google.com/thumbnail?id=${id}&sz=w800`;
-    // Dropbox: dl=0 → raw=1
-    if (raw.includes("dropbox.com")) return raw.replace("dl=0","raw=1").replace("www.dropbox","dl.dropboxusercontent");
-    // Direct image URL — use as-is
-    return raw;
-  }
 
   const handlePreview = () => {
     setErr("");
