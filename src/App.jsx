@@ -14,7 +14,7 @@ function eT() {
     countryList:[{country:"",cities:""}],
     startDate:"", days:"", season:"N/A (Tropical)",
     companions:"", budget:"", coverPhoto:null,
-    coverPhotoLinked:false, coverPhotoUrl:"",
+    coverPhotoLinked:false, coverPhotoUrl:"", coverPhotoPreview:"",
     reflection:"", rating:0, goAgain:"", highlights:"", tripDays:[]
   };
 }
@@ -270,18 +270,17 @@ function TripForm({initial, onSave, onCancel}) {
       {/* Cover photo */}
       {f.coverPhoto
         ? <div style={{position:"relative",marginBottom:12}}>
-            <img src={f.coverPhoto} style={{width:"100%",height:160,objectFit:"contain",background:"#2a1f14",borderRadius:9}} alt="cover"
-              onError={e=>{e.target.style.display="none";}}/>
-            <button onClick={()=>{u("coverPhoto",null);u("coverPhotoLinked",false);u("coverPhotoUrl","");}}
+            <img src={f.coverPhoto} style={{width:"100%",height:160,objectFit:"contain",background:"#2a1f14",borderRadius:9}} alt="cover"/>
+            <button onClick={()=>{u("coverPhoto",null);u("coverPhotoLinked",false);u("coverPhotoUrl","");u("coverPhotoPreview","");}}
               style={{position:"absolute",top:8,right:8,background:"rgba(0,0,0,.6)",color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontSize:12}}>Remove</button>
             {f.coverPhotoLinked && <span style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,.55)",color:"#fff",fontSize:10,padding:"2px 8px",borderRadius:20}}>🔗 Linked</span>}
           </div>
         : <div style={{marginBottom:14,background:"#f5f0e8",borderRadius:9,padding:12,border:"1px solid #e0d4bc"}}>
             <div style={{fontSize:11,fontWeight:600,color:"#7a5c3c",marginBottom:8}}>Cover Photo</div>
             {/* Upload */}
-            <label style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",height:60,border:"2px dashed #c4a882",borderRadius:8,background:"#faf7f0",cursor:"pointer",color:"#a08060",fontSize:13,gap:6,marginBottom:10}}>
+            <label style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",height:56,border:"2px dashed #c4a882",borderRadius:8,background:"#faf7f0",cursor:"pointer",color:"#a08060",fontSize:13,gap:6,marginBottom:10}}>
               📷 Upload from device
-              <input type="file" accept="image/*" hidden onChange={e=>{const f2=e.target.files[0];if(f2)compress(f2,d=>{u("coverPhoto",d);u("coverPhotoLinked",false);u("coverPhotoUrl","");},900,0.65)}}/>
+              <input type="file" accept="image/*" hidden onChange={e=>{const f2=e.target.files[0];if(f2)compress(f2,d=>{u("coverPhoto",d);u("coverPhotoLinked",false);},900,0.65)}}/>
             </label>
             {/* Divider */}
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
@@ -289,24 +288,41 @@ function TripForm({initial, onSave, onCancel}) {
               <span style={{fontSize:11,color:"#9a7a5a"}}>or link from Google Drive</span>
               <div style={{flex:1,height:1,background:"#e0d4bc"}}/>
             </div>
-            {/* URL input + preview */}
-            <input style={{...I.inp,marginBottom:8}} value={f.coverPhotoUrl||""} 
-              onChange={e=>u("coverPhotoUrl",e.target.value)}
+            {/* URL input */}
+            <input style={{...I.inp,marginBottom:8}}
+              value={f.coverPhotoUrl||""}
+              onChange={e=>{ u("coverPhotoUrl",e.target.value); u("coverPhotoPreview",""); }}
               placeholder="Paste Google Drive / Dropbox / image URL…"/>
-            {f.coverPhotoUrl && (
-              <div>
-                <div style={{borderRadius:8,overflow:"hidden",background:"#2a1f14",marginBottom:6,textAlign:"center"}}>
-                  <img src={toDirectUrl(f.coverPhotoUrl)} alt="preview"
-                    style={{maxWidth:"100%",maxHeight:140,objectFit:"contain"}}
-                    onLoad={()=>{ u("coverPhoto", toDirectUrl(f.coverPhotoUrl)); u("coverPhotoLinked",true); }}
-                    onError={e=>{ e.target.style.display="none"; }}/>
-                </div>
-                <button onClick={()=>{ u("coverPhoto", toDirectUrl(f.coverPhotoUrl)); u("coverPhotoLinked",true); }}
-                  style={{...I.btnP,width:"100%",padding:"8px",fontSize:13}}>
-                  ✓ Use this as Cover Photo
-                </button>
+            {/* Preview */}
+            {f.coverPhotoPreview && (
+              <div style={{marginBottom:8,borderRadius:8,overflow:"hidden",background:"#2a1f14",textAlign:"center"}}>
+                <img src={f.coverPhotoPreview} alt="preview"
+                  style={{maxWidth:"100%",maxHeight:140,objectFit:"contain"}}
+                  onError={e=>{e.target.parentNode.innerHTML='<div style="color:#f5c6c6;padding:12px;font-size:12px">⚠️ Could not load. Check the link is set to Anyone with link.</div>';}}/>
               </div>
             )}
+            <div style={{display:"flex",gap:8}}>
+              {!f.coverPhotoPreview
+                ? <button onClick={()=>{
+                    if(!f.coverPhotoUrl){return;}
+                    u("coverPhotoPreview", toDirectUrl(f.coverPhotoUrl));
+                  }} style={{...I.btnP,flex:1,padding:"8px",fontSize:13}}>
+                    Preview
+                  </button>
+                : <button onClick={()=>{
+                    u("coverPhoto", f.coverPhotoPreview);
+                    u("coverPhotoLinked", true);
+                  }} style={{...I.btnP,flex:1,padding:"8px",fontSize:13}}>
+                    ✓ Set as Cover Photo
+                  </button>
+              }
+              {f.coverPhotoUrl && (
+                <button onClick={()=>{ u("coverPhotoUrl",""); u("coverPhotoPreview",""); }}
+                  style={{...I.btnO,padding:"8px 14px",fontSize:13}}>
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
       }
 
