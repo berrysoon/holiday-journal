@@ -1,7 +1,85 @@
 import React, { useState } from "react";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { exportTripPdf } from "./exportPdf";
 
 const TAGS = ["🍜 Food","🏛️ Culture","🥾 Adventure","🛍️ Shopping","😴 Rest","🏖️ Beach","🎭 Nightlife","🌿 Nature"];
 const SEASONS = ["N/A (Tropical)","Spring 🌸","Summer ☀️","Autumn 🍂","Winter ❄️"];
+
+// Country name → [lat, lng] for map pins
+const COUNTRY_COORDS = {
+  "Afghanistan":[33.93,67.71],"Albania":[41.15,20.17],"Algeria":[28.03,1.66],
+  "Andorra":[42.55,1.60],"Angola":[-11.20,17.87],"Argentina":[-38.42,-63.62],
+  "Armenia":[40.07,45.04],"Australia":[-25.27,133.77],"Austria":[47.52,14.55],
+  "Azerbaijan":[40.14,47.58],"Bahrain":[26.02,50.55],"Bangladesh":[23.68,90.35],
+  "Belarus":[53.71,27.95],"Belgium":[50.50,4.47],"Bolivia":[-16.29,-63.59],
+  "Bosnia and Herzegovina":[43.92,17.68],"Botswana":[-22.33,24.68],
+  "Brazil":[-14.24,-51.93],"Brunei":[4.94,114.95],"Bulgaria":[42.73,25.49],
+  "Cambodia":[12.57,104.99],"Cameroon":[3.85,11.50],"Canada":[56.13,-106.35],
+  "Chile":[-35.68,-71.54],"China":[35.86,104.20],"Colombia":[4.57,-74.30],
+  "Costa Rica":[9.75,-83.75],"Croatia":[45.10,15.20],"Cuba":[21.52,-77.78],
+  "Cyprus":[35.13,33.43],"Czech Republic":[49.82,15.47],"Czechia":[49.82,15.47],
+  "Denmark":[56.26,9.50],"Dominican Republic":[18.74,-70.16],"Ecuador":[-1.83,-78.18],
+  "Egypt":[26.82,30.80],"El Salvador":[13.79,-88.90],"Estonia":[58.60,25.01],
+  "Ethiopia":[9.14,40.49],"Fiji":[-17.71,178.07],"Finland":[61.92,25.75],
+  "France":[46.23,2.21],"Georgia":[42.31,43.36],"Germany":[51.17,10.45],
+  "Ghana":[7.95,-1.02],"Greece":[39.07,21.82],"Guatemala":[15.78,-90.23],
+  "Hong Kong":[22.32,114.17],"Hungary":[47.16,19.50],"Iceland":[64.96,-19.02],
+  "India":[20.59,78.96],"Indonesia":[-0.79,113.92],"Iran":[32.43,53.69],
+  "Iraq":[33.22,43.68],"Ireland":[53.41,-8.24],"Israel":[31.05,34.85],
+  "Italy":[41.87,12.57],"Jamaica":[18.11,-77.30],"Japan":[36.20,138.25],
+  "Jordan":[30.59,36.24],"Kazakhstan":[48.02,66.92],"Kenya":[-0.02,37.91],
+  "Kuwait":[29.31,47.48],"Kyrgyzstan":[41.20,74.77],"Laos":[19.86,102.50],
+  "Latvia":[56.88,24.60],"Lebanon":[33.85,35.86],"Libya":[26.34,17.23],
+  "Liechtenstein":[47.17,9.56],"Lithuania":[55.17,23.88],"Luxembourg":[49.82,6.13],
+  "Macao":[22.17,113.55],"Macau":[22.17,113.55],"Madagascar":[-18.77,46.87],
+  "Malaysia":[4.21,108.10],"Maldives":[3.20,73.22],"Malta":[35.94,14.38],
+  "Mauritius":[-20.35,57.55],"Mexico":[23.63,-102.55],"Moldova":[47.41,28.37],
+  "Monaco":[43.73,7.41],"Mongolia":[46.86,103.85],"Montenegro":[42.71,19.37],
+  "Morocco":[31.79,-7.09],"Mozambique":[-18.67,35.53],"Myanmar":[16.87,96.19],
+  "Namibia":[-22.96,18.49],"Nepal":[28.39,84.12],"Netherlands":[52.13,5.29],
+  "New Zealand":[-40.90,174.89],"Nigeria":[9.08,8.68],"North Korea":[40.34,127.51],
+  "North Macedonia":[41.61,21.75],"Norway":[60.47,8.47],"Oman":[21.00,57.00],
+  "Pakistan":[30.38,69.35],"Palestine":[31.95,35.23],"Panama":[8.54,-80.78],
+  "Paraguay":[-23.44,-58.44],"Peru":[-9.19,-75.02],"Philippines":[12.88,121.77],
+  "Poland":[51.92,19.15],"Portugal":[39.40,-8.22],"Puerto Rico":[18.22,-66.59],
+  "Qatar":[25.35,51.18],"Romania":[45.94,24.97],"Russia":[61.52,105.32],
+  "Rwanda":[-1.94,29.87],"Saudi Arabia":[23.89,45.08],"Senegal":[14.50,-14.45],
+  "Serbia":[44.02,21.01],"Singapore":[1.35,103.82],"Slovakia":[48.67,19.70],
+  "Slovenia":[46.15,14.99],"South Africa":[-30.56,22.94],"South Korea":[35.91,127.77],
+  "Spain":[40.46,-3.75],"Sri Lanka":[7.87,80.77],"Sweden":[60.13,18.64],
+  "Switzerland":[46.82,8.23],"Syria":[34.80,38.99],"Taiwan":[23.70,121.00],
+  "Tajikistan":[38.86,71.28],"Tanzania":[-6.37,34.89],"Thailand":[15.87,100.99],
+  "Trinidad and Tobago":[10.69,-61.22],"Tunisia":[33.89,9.54],"Turkey":[38.96,35.24],
+  "Turkmenistan":[38.97,59.56],"Uganda":[1.37,32.29],"Ukraine":[48.38,31.17],
+  "United Arab Emirates":[23.42,53.85],"UAE":[23.42,53.85],
+  "United Kingdom":[55.38,-3.44],"UK":[55.38,-3.44],"Great Britain":[55.38,-3.44],
+  "United States":[37.09,-95.71],"USA":[37.09,-95.71],"United States of America":[37.09,-95.71],
+  "Uruguay":[-32.52,-55.77],"Uzbekistan":[41.38,64.59],"Venezuela":[6.42,-66.59],
+  "Vietnam":[14.06,108.28],"Yemen":[15.55,48.52],"Zambia":[-13.13,27.85],
+  "Zimbabwe":[-19.02,29.15],"Bahamas":[25.03,-77.40],"Barbados":[13.19,-59.54],
+  "Belize":[17.19,-88.50],"Bhutan":[27.51,90.43],"Burkina Faso":[12.36,-1.56],
+  "Burundi":[-3.37,29.92],"Cape Verde":[16.54,-23.04],"Chad":[15.45,18.73],
+  "Djibouti":[11.83,42.59],"Dominica":[15.41,-61.37],"Timor-Leste":[-8.87,125.73],
+  "Eritrea":[15.18,39.78],"Eswatini":[-26.52,31.47],"Swaziland":[-26.52,31.47],
+  "Gabon":[-0.80,11.61],"Gambia":[13.44,-15.31],"Guinea":[9.95,-11.81],
+  "Guinea-Bissau":[11.80,-15.18],"Guyana":[4.86,-58.93],"Haiti":[18.97,-72.29],
+  "Honduras":[15.20,-86.24],"Lesotho":[-29.61,28.23],"Liberia":[6.43,-9.43],
+  "Malawi":[-13.25,34.30],"Mali":[17.57,-3.99],"Mauritania":[21.01,-10.94],
+  "Micronesia":[7.43,150.55],"Nicaragua":[12.87,-85.21],"Niger":[17.61,8.08],
+  "Papua New Guinea":[-6.31,143.96],"Sierra Leone":[8.46,-11.78],
+  "Solomon Islands":[-9.64,160.16],"Somalia":[5.15,46.20],"South Sudan":[6.88,31.31],
+  "Suriname":[3.92,-56.03],"Togo":[8.62,0.82],"Tonga":[-21.18,-175.20],
+  "Vanuatu":[-15.38,166.96],"Scotland":[56.49,-4.20],"Wales":[52.13,-3.78],
+  "England":[52.36,-1.17],"Northern Ireland":[54.78,-6.49],
+};
+
+function getCountryCoords(name) {
+  if (!name) return null;
+  const key = Object.keys(COUNTRY_COORDS).find(k => k.toLowerCase() === name.toLowerCase().trim());
+  return key ? COUNTRY_COORDS[key] : null;
+}
 
 function uid() { return Math.random().toString(36).slice(2,9); }
 
@@ -574,6 +652,12 @@ function TripDetail({trip, onBack, onEdit, readOnly}) {
           : <>
               <button style={I.btnO} onClick={onBack}>← Back</button>
               <button style={I.btnP} onClick={()=>onEdit(trip)}>Edit</button>
+<button
+  onClick={() => exportTripPdf(trip)}
+  style={{...I.btnO, borderColor:"#a08060", color:"#6b4c2a"}}
+>
+  📄 Export PDF
+</button>
               <button onClick={handleShare} style={{...I.btnO,borderColor:"#5b8ed4",color:"#5b8ed4"}}>
                 🔗 Share Trip
               </button>
@@ -605,6 +689,68 @@ function Wall({trips, filterCountry, filterYear, onView, onEdit, onDelete}) {
   );
 }
 
+// ── Map View ─────────────────────────────────────────────────────────────────
+const PIN_ICON = (count) => L.divIcon({
+  html: `<div style="background:#c8722a;color:#fff;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:${count>1?13:17}px;font-weight:700;font-family:Georgia,serif;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:pointer">${count>1?count:"📍"}</div>`,
+  className: "",
+  iconSize: [34, 34],
+  iconAnchor: [17, 17],
+  popupAnchor: [0, -18],
+});
+
+function MapView({trips, filterCountry, filterYear, onView}) {
+  let shown = trips;
+  if (filterCountry) shown = shown.filter(t => tripCountries(t).some(c => c === filterCountry));
+  if (filterYear) shown = shown.filter(t => getYear(t) === filterYear);
+
+  const byCountry = {};
+  shown.forEach(t => {
+    tripCountries(t).forEach(c => {
+      if (!byCountry[c]) byCountry[c] = [];
+      byCountry[c].push(t);
+    });
+  });
+
+  const markers = Object.entries(byCountry)
+    .map(([country, cts]) => ({ country, trips: cts, coords: getCountryCoords(country) }))
+    .filter(m => m.coords);
+
+  const unmapped = Object.keys(byCountry).filter(c => !getCountryCoords(c));
+
+  return (
+    <div>
+      <div style={{height:480,borderRadius:12,overflow:"hidden",border:"1px solid #e0d4bc",marginBottom:unmapped.length?10:0}}>
+        <MapContainer center={[20,10]} zoom={2} style={{height:"100%",width:"100%"}} scrollWheelZoom={true}>
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          {markers.map(({country, trips:cts, coords}) => (
+            <Marker key={country} position={coords} icon={PIN_ICON(cts.length)}>
+              <Popup>
+                <div style={{fontFamily:"Georgia,serif",minWidth:130}}>
+                  <div style={{fontWeight:700,color:"#3d2b1a",marginBottom:7,fontSize:14}}>📍 {country}</div>
+                  {cts.map(t => (
+                    <div key={t.id} onClick={() => onView(t)}
+                      style={{fontSize:13,color:"#c8722a",cursor:"pointer",marginBottom:4,textDecoration:"underline"}}>
+                      {t.title || "Untitled"}
+                    </div>
+                  ))}
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+        </MapContainer>
+      </div>
+      {unmapped.length > 0 && (
+        <div style={{fontSize:11,color:"#9a7a5a",padding:"6px 10px",background:"#faf7f2",border:"1px solid #e0d4bc",borderRadius:8}}>
+          ⚠️ No coordinates found for: {unmapped.join(", ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── App ──────────────────────────────────────────────────────────────────────
 const STORAGE_KEY = "holiday_journal_trips";
 
@@ -632,6 +778,7 @@ export default function App() {
   }
   const [trips, setTrips] = useState(loadTrips);
   const [view, setView] = useState("wall");
+  const [wallMode, setWallMode] = useState("grid"); // "grid" | "map"
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [filterCountry, setFilterCountry] = useState("");
@@ -743,6 +890,12 @@ export default function App() {
               {importErr && <div style={{fontSize:11,color:"#c0392b",width:"100%"}}>{importErr}</div>}
             </div>
 
+            {/* View toggle */}
+            <div style={{display:"flex",gap:6,marginBottom:12}}>
+              <button style={{...I.tag(wallMode==="grid"),padding:"8px 18px",fontSize:13}} onClick={()=>setWallMode("grid")}>⊞ Cards</button>
+              <button style={{...I.tag(wallMode==="map"),padding:"8px 18px",fontSize:13}} onClick={()=>setWallMode("map")}>🗺️ Map View</button>
+            </div>
+
             {/* Filters */}
             <div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap",alignItems:"center"}}>
               <div style={I.lbl}>
@@ -777,10 +930,13 @@ export default function App() {
                 </div>
                 {importErr && <div style={{fontSize:11,color:"#c0392b",marginTop:8}}>{importErr}</div>}
               </div>
-            : <Wall trips={trips} filterCountry={filterCountry} filterYear={filterYear}
-                onView={t=>{setViewing(t);setView("detail");}}
-                onEdit={t=>{setEditing(t);setView("form");}}
-                onDelete={id=>persist(trips.filter(t=>t.id!==id))}/>
+            : wallMode==="map"
+              ? <MapView trips={trips} filterCountry={filterCountry} filterYear={filterYear}
+                  onView={t=>{setViewing(t);setView("detail");}}/>
+              : <Wall trips={trips} filterCountry={filterCountry} filterYear={filterYear}
+                  onView={t=>{setViewing(t);setView("detail");}}
+                  onEdit={t=>{setEditing(t);setView("form");}}
+                  onDelete={id=>persist(trips.filter(t=>t.id!==id))}/>
           }
         </>}
       </div>
